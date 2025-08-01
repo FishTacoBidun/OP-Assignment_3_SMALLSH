@@ -147,6 +147,22 @@ void forget(int lineID, struct commandLine** processList)
 }
 
 
+void ifBackgroundProcess(struct commandLine** processList)
+{
+    struct commandLine* curr = *processList;
+    struct commandLine* temp = NULL;
+
+    while (curr != NULL)
+    {
+        temp = curr;
+        curr = curr->next;
+        processStatus(temp->lineID, processList);
+    }
+
+    return;
+}
+
+
 void processStatus(int lineID, struct commandLine** processList)
 {
     int ifExited = -5;
@@ -174,6 +190,186 @@ void processStatus(int lineID, struct commandLine** processList)
         printf(status, "background pid %d is done: terminated by signal %d", lineID, statusValue);
         printf("%s\n", status);
         forget(lineID, processList);
+    }
+
+    return;
+}
+
+
+void getCommands(char commands[MAX][MAX], int* numElements)
+{
+    size_t bufferSize = 0;
+    int numChars = -5;
+    char* line = NULL;
+
+    while(true)
+    {
+        printf(": ");
+
+        numChars = getline(&line, &bufferSize, stdin);
+
+        if (numChars == -1)
+        {
+            clearerr(stdin);
+        }
+        else
+        {
+            break;
+        }
+    }
+
+    line[numChars - 1] = 0;
+
+    char* token = NULL;
+    int index = 0;
+
+    token = strtok(line, " ");
+    while (token != NULL)
+    {
+        strcpy(commands[index], token);
+        index++;
+        token = strtok(NULL, " ");
+    }
+
+    free(line);
+
+    *numElements = index;
+    return;
+}
+
+
+void replaceTwo$(char commands[MAX][MAX], int numElements)
+{
+    for (int i = 0; i < numElements; i++) 
+    {
+
+        bool currWord = false;
+
+        while (currWord == false)
+        {
+            int wordLength = strlen(commands[i]);
+            bool change = false;
+
+            for (int j = 0; j < wordLength - 1; j++)
+            {
+                char firstChar = commands[i][j];
+                char secondChar = commands[i][j + 1];
+
+                if (firstChar == '$' && secondChar == '$')
+                {
+                    char temp[MAX + 10];
+                    int l;
+
+                    for (l = 0; l < j; l++)
+                    {
+                        temp[l] = commands[i][l];
+                    }
+
+                    int pid = getpid();
+                    char tempPid[10];
+                    sprintf(tempPid, "%d", pid);
+                    int tempPidLength = strlen(tempPid);
+
+                    for (l = 0; l < tempPidLength; l++)
+                    {
+                        temp[j + l] = tempPid[l];
+                    }
+
+                    int g = 0;
+
+                    for (l = j + 2; l < wordLength; l++)
+                    {
+                        temp[j + tempPidLength + g] = commands[i][k];
+                        g++;
+                    }
+
+                    temp[j + tempPidLength + g] = 0;
+
+                    strcpy(commands[i], temp);
+
+                    change = true;
+
+                    break;
+                }
+            }
+
+            if (change == false)
+            {
+                currWord = true;
+            }
+        }
+    }
+
+    return;
+}
+
+
+void exitPreperation(struct commandLine** processList)
+{
+    struct commandLine* curr = *processList;
+    struct commandLine* temp = NULL;
+
+    while (curr != NULL)
+    {
+        temp = curr;
+        curr = curr->next;
+        kill(temp->lineID, SIGKILL);
+
+        int childExit;
+        int statusValue;
+        char status[MAX];
+
+        waitpid(temp->lineID, &childExit, 0);
+
+        if (WIFEXITED(childExit) != 0)
+        {
+            statusValue = WEXITSTATUS(childExit);
+            printf(status, "background pid %d is done: exit value %d", temp->lineID, statusValue);
+            printf("%s\n", status);
+            forget(temp->lineID, processList);
+        }
+        else if (WIFSIGNALED(childExit) != 0)
+        {
+            statusValue = WTERMSIG(childExit);
+            printf(status, "background pid %d is done: terminated by signal %d", temp->lineID, statusValue);
+            printf("%s\n", status);
+            forget(temp->lineID, processList);
+        }
+    }
+
+    return;
+}
+
+
+void outputStatus(int statusType, int statusValue)
+{
+    if (statusType == 1)
+    {
+        printf("exit value ");
+    }
+    else
+    {
+        printf("terminated by signal "); 
+    }
+
+    char SigOrVal[5];
+    printf(SigOrVal, "%d", statusValue);
+    printf("%s\n", SigOrVal);
+
+    return;
+}
+
+void changeDirectory(char temp[MAX])
+{
+    const char* home = getenv("HOME");
+
+    if (strlen(temp) == 0 || strcmp(temp, "~") == 0)
+    {
+        chdir(home);
+    }
+    else
+    {
+        chdir(temp);
     }
 
     return;
