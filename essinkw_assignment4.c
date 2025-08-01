@@ -84,7 +84,7 @@ int main()
         }
         else
         {
-            executeCommand
+            executeCommands
             (
                 commands,
                 numElements,
