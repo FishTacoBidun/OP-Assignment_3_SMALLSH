@@ -84,16 +84,7 @@ int main()
         }
         else
         {
-            executeCommands
-            (
-                commands,
-                numElements,
-                &statusType,
-                &statusValue,
-                &ifBackground,
-                &processList,
-                &firstAction
-            );
+            executeCommands(commands, numElements, &statusType, &statusValue, &ifBackground, &processList, &firstAction);
         }
     }
 
