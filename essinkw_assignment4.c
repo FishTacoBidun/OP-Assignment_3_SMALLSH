@@ -82,7 +82,11 @@ int main()
         else if (strcmp(commands[0], "status") == 0)
         {
             //print exit or signal status of last foreground command
-            outputStatus(statusType, statusValue);
+            if (numElements > 1 && strcmp(commands[1], "&") == 0) 
+            {
+                numElements--;
+            }
+                outputStatus(statusType, statusValue);
         }
         else if (strcmp(commands[0], "cd") == 0)
         {
@@ -299,9 +303,7 @@ void execute(struct commandLine** processList, struct sigaction* firstAction, ch
     else 
     {
         //print and store background process info
-        char backgroundMessage[MAX];
-        printf(backgroundMessage, "background pid is %d", makePid);
-        printf("%s\n", backgroundMessage);
+        printf("background pid is %d", makePid);
 
         rememberProcess(processList, makePid);
     }
@@ -419,15 +421,13 @@ void processStatus(int lineID, struct commandLine** processList)
     if (WIFEXITED(childExit) != 0)
     {
         statusValue = WEXITSTATUS(childExit);
-        printf(status, "background pid %d is done: exit value %d", lineID, statusValue);
-        printf("%s\n", status);
+        printf("background pid %d is done: exit value %d", lineID, statusValue);
         forget(lineID, processList);
     }
     else if (WIFSIGNALED(childExit) != 0)
     {
         statusValue = WTERMSIG(childExit);
-        printf(status, "background pid %d is done: terminated by signal %d", lineID, statusValue);
-        printf("%s\n", status);
+        printf("background pid %d is done: terminated by signal %d", lineID, statusValue);
         forget(lineID, processList);
     }
 
@@ -612,15 +612,13 @@ void exitPreperation(struct commandLine** processList)
         if (WIFEXITED(childExit) != 0)
         {
             statusValue = WEXITSTATUS(childExit);
-            printf(status, "background pid %d is done: exit value %d", temp->lineID, statusValue);
-            printf("%s\n", status);
+            printf("background pid %d is done: exit value %d", temp->lineID, statusValue);
             forget(temp->lineID, processList);
         }
         else if (WIFSIGNALED(childExit) != 0)
         {
             statusValue = WTERMSIG(childExit);
-            printf(status, "background pid %d is done: terminated by signal %d", temp->lineID, statusValue);
-            printf("%s\n", status);
+            printf("background pid %d is done: terminated by signal %d", temp->lineID, statusValue);
             forget(temp->lineID, processList);
         }
     }
