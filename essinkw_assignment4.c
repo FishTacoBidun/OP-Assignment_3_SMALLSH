@@ -45,7 +45,7 @@ int main()
     struct sigaction dealSigtstp = {{0}};
     dealSigtstp.sa_handler = dealWithSigtstp;
     sigfillset(&dealSigtstp.sa_mask);
-    dealSigtstp.sa_flags = 0;
+    dealSigtstp.sa_flags = 0; // I don't think this line is necessary.
     sigaction(SIGTSTP, &dealSigtstp, NULL);
 
     while (true)
@@ -84,13 +84,198 @@ int main()
         }
         else
         {
-            executeCommands(commands, numElements, &statusType, &statusValue, &ifBackground, &processList, &firstAction);
+            execute(&processList, &firstAction, commands, numElements, &statusType, &statusValue, &ifBackground);
         }
     }
 
     return 0;
 }
 
+
+void execute(struct commandLine** processList, struct sigaction* firstAction, char commands[MAX][MAX], int numElements, int* statusType, int* statusValue, bool* ifBackground)
+{
+    bool isInBackground = false;
+    char redirectInput[MAX] = "";
+    char redirectOutput[MAX] = "";
+
+    if (strcmp(commands[numElements - 1], "&") == 0)
+    {
+        if (*ifBackground == true)
+        {
+            isInBackground = true;
+        }
+
+        numElements--;
+    }
+
+    bool doubleCheck = false;
+
+    if (strcmp(commands[numElements - 2], "<") == 0)
+    {
+        strcpy(redirectInput, commands[numElements - 1]);
+        numElements = numElements - 2;
+        doubleCheck = true;
+    }
+    else if (strcmp(commands[numElements - 2], ">") == 0)
+    {
+        strcpy(redirectOutput, commands[numElements - 1]);
+        numElements = numElements - 2;
+        doubleCheck = true;
+    }
+
+    if (doubleCheck == true)
+    {
+        if (strcmp(commands[numElements - 2], "<") == 0)
+        {
+            strcpy(redirectInput, commands[numElements - 1]);
+            numElements = numElements - 2;
+        }
+        else if(strcmp(commands[numElements - 2], ">") == 0)
+        {
+            strcpy(redirectOutput, commands[numElements - 1]);
+            numElements = numElements - 2;
+        }
+    }
+
+    char* arguments[numElements];
+
+    for (int i = 0; i < numElements; i++)
+    {
+        arguments[i] = calloc(MAX_STRING_LENGTH, sizeof(char));
+        strcpy(arguments[i], commands[i]);
+    }
+    
+    arguments[numElements] = NULL;
+    pid_t makePid = -5;
+    int childExit = -5;
+ 
+    makePid = fork();
+ 
+    if (makePid == -1)
+    {
+        perror("Error when attempting to fork!\n");
+        exit(1);
+    }
+    else if (makePid == 0)
+    {
+        if (isInBackground == true)
+        {
+            if (strcmp(redirectInput, "") == 0)
+            {
+                strcpy(redirectInput, "/dev/null");
+            }
+            if (strcmp(redirectOutput, "") == 0)
+            {
+                strcpy(redirectOutput, "/dev/null");
+            }
+        }
+
+        if (strcmp(redirectInput, "") != 0)
+        {
+            int source = open(redirectInput, O_RDONLY);
+
+            if (source == -1) {
+                perror("Error when opening file for input redirection!");
+                exit(1);
+            }
+
+            int result = dup2(source, 0);
+
+            if (result == -1)
+            {
+                perror("Error when initiating input redirection!");
+                exit(1);
+            }
+        }
+
+        if (strcmp(redirectOutput, "") != 0)
+        {
+            int target = open(redirectOutput, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+
+            if (target == -1) 
+            {
+                perror("Error when opening file for output redirection!");
+                exit(1);
+            }
+
+            int result = dup2(target, 1);
+
+            if (result == -1)
+            {
+                perror("Error when initiating output redirection!");
+                exit(1);
+            }
+        }
+
+        if (isInBackground == false)
+        {
+            sigaction(SIGINT, firstAction, NULL);
+        }
+
+        struct sigaction ignore = {{0}};
+        ignore.sa_handler = SIG_IGN;
+        sigaction(SIGTSTP, &ignore, NULL);
+
+        if (execvp(*arguments, arguments) < 0)
+        {
+            perror("Error when attempting to execute command!");
+            exit(1);
+        }
+    }
+    
+    if (isInBackground == false)
+    {
+        ifForeground = true;
+        ifSigtstp = false;
+
+        int pidResult = -1;
+        
+        while (pidResult == -1)
+        {
+            pidResult = waitpid(makePid, &childExit, 0);
+        }
+
+        ifForeground = false;
+
+        if (ifSigtstp == true)
+        {
+            ifSigtstp = false;
+            toggleMode();
+        }
+
+        if (WIFEXITED(childExit) != 0)
+        {
+            *statusType = 1;
+            *statusValue = WEXITSTATUS(childExit);
+        }
+        else if (WIFSIGNALED(childExit) != 0)
+        {
+            *statusType = SIGNAL_RECEIVED;
+            *statusValue = WTERMSIG(childExit);
+            printf("terminated by signal %d\n", *statusValue);
+        } 
+        else 
+        {
+            perror("A process ended for reasons unknown!");
+            exit(1);
+        }
+    } 
+    else 
+    {
+        char backgroundMessage[MAX];
+        printf(backgroundMessage, "background pid is %d", makePid);
+        printf("%s\n", backgroundMessage);
+
+        rememberProcess(processList, makePid);
+    }
+
+    for (i = 0; i < numElements; i++)
+    {
+        free(arguments[i]);
+    }
+
+    return;
+}
 
 void toggleMode()
 {
@@ -142,6 +327,35 @@ void forget(int lineID, struct commandLine** processList)
     }
 
     free(curr);
+
+    return;
+}
+
+
+void rememberProcess(struct commandLine** processList, int remember)
+{
+    if (*processList == NULL) 
+    {
+        *processList = (struct commandLine*)malloc(sizeof(struct commandLine));
+        (*processList)->lineID = remember;
+        (*processList)->next = NULL;
+    } 
+    else 
+    {
+        struct commandLine* curr = (*processList)->next;
+        struct commandLine* prev = *processList;
+        
+        while (curr != NULL) 
+        {
+            prev = curr;
+            curr = curr->next;
+        }
+
+        prev->next = (struct commandLine*)malloc(sizeof(struct commandLine));
+        
+        prev->next->lineID = remember;
+        prev->next->next = NULL;
+    }
 
     return;
 }
@@ -304,6 +518,41 @@ void replaceTwo$(char commands[MAX][MAX], int numElements)
 }
 
 
+void outputStatus(int statusType, int statusValue)
+{
+    if (statusType == 1)
+    {
+        printf("exit value ");
+    }
+    else
+    {
+        printf("terminated by signal "); 
+    }
+
+    char SigOrVal[5];
+    printf(SigOrVal, "%d", statusValue);
+    printf("%s\n", SigOrVal);
+
+    return;
+}
+
+void changeDirectory(char temp[MAX])
+{
+    const char* home = getenv("HOME");
+
+    if (strlen(temp) == 0 || strcmp(temp, "~") == 0)
+    {
+        chdir(home);
+    }
+    else
+    {
+        chdir(temp);
+    }
+
+    return;
+}
+
+
 void exitPreperation(struct commandLine** processList)
 {
     struct commandLine* curr = *processList;
@@ -335,41 +584,6 @@ void exitPreperation(struct commandLine** processList)
             printf("%s\n", status);
             forget(temp->lineID, processList);
         }
-    }
-
-    return;
-}
-
-
-void outputStatus(int statusType, int statusValue)
-{
-    if (statusType == 1)
-    {
-        printf("exit value ");
-    }
-    else
-    {
-        printf("terminated by signal "); 
-    }
-
-    char SigOrVal[5];
-    printf(SigOrVal, "%d", statusValue);
-    printf("%s\n", SigOrVal);
-
-    return;
-}
-
-void changeDirectory(char temp[MAX])
-{
-    const char* home = getenv("HOME");
-
-    if (strlen(temp) == 0 || strcmp(temp, "~") == 0)
-    {
-        chdir(home);
-    }
-    else
-    {
-        chdir(temp);
     }
 
     return;
