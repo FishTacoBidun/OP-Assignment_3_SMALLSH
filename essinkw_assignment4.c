@@ -17,13 +17,28 @@
 struct commandLine
 {
     int lineID;
-    struct commandLine** next;
+    struct commandLine* next;
 };
 
 //global variables
 bool ifBackground = true;
 bool ifForeground = false;
 bool ifSigtstp = false;
+
+
+void dealWithSigtstp(int signo)
+{
+    if (ifForeground == false)
+    {
+        toggleMode();
+    }
+    else
+    {
+        ifSigtstp = true;
+    }
+    return;
+}
+
 
 int main()
 {
@@ -289,20 +304,6 @@ void toggleMode()
         ifBackground = true;
         printf("\nExiting foreground-only mode\n");
     }
-}
-
-
-void dealWithSigtstp(int signo)
-{
-    if (ifForeground == false)
-    {
-        toggleMode();
-    }
-    else
-    {
-        ifSigtstp = true;
-    }
-    return;
 }
 
 
