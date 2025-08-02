@@ -141,7 +141,7 @@ void execute(struct commandLine** processList, struct sigaction* firstAction, ch
 
     for (int i = 0; i < numElements; i++)
     {
-        arguments[i] = calloc(MAX_STRING_LENGTH, sizeof(char));
+        arguments[i] = calloc(MAX, sizeof(char));
         strcpy(arguments[i], commands[i]);
     }
     
@@ -250,7 +250,7 @@ void execute(struct commandLine** processList, struct sigaction* firstAction, ch
         }
         else if (WIFSIGNALED(childExit) != 0)
         {
-            *statusType = SIGNAL_RECEIVED;
+            *statusType = 0;
             *statusValue = WTERMSIG(childExit);
             printf("terminated by signal %d\n", *statusValue);
         } 
@@ -269,7 +269,7 @@ void execute(struct commandLine** processList, struct sigaction* firstAction, ch
         rememberProcess(processList, makePid);
     }
 
-    for (i = 0; i < numElements; i++)
+    for (int i = 0; i < numElements; i++)
     {
         free(arguments[i]);
     }
@@ -493,7 +493,7 @@ void replaceTwo$(char commands[MAX][MAX], int numElements)
 
                     for (l = j + 2; l < wordLength; l++)
                     {
-                        temp[j + tempPidLength + g] = commands[i][k];
+                        temp[j + tempPidLength + g] = commands[i][l];
                         g++;
                     }
 
@@ -588,3 +588,5 @@ void exitPreperation(struct commandLine** processList)
 
     return;
 }
+
+
